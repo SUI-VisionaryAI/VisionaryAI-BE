@@ -5,6 +5,7 @@ const versionSchema = new mongoose.Schema({
   description: { type: String, default: "" },
   filePath: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
+  longDescription: { type: String, default: "" },
 });
 
 const aiModelSchema = new mongoose.Schema({
@@ -20,6 +21,9 @@ const aiModelSchema = new mongoose.Schema({
     default: "unreleased",
   },
   versions: [versionSchema],
+  downloadCount: { type: Number, default: 0 },
+  likedUsers: [{ type: String }],
+  runCount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
 });
 

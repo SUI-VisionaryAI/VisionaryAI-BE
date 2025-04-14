@@ -89,6 +89,7 @@ router.post("/models/prepare-metadata", async (req, res) => {
       license: model.license,
       version: latestVersion.versionNumber,
       versionDescription: latestVersion.description,
+      longDescription: latestVersion.longDescription,
     };
 
     const fileName = `${model._id}_v${metadata.version.replace(
@@ -111,6 +112,63 @@ router.post("/models/prepare-metadata", async (req, res) => {
   } catch (err) {
     console.error("[prepare-metadata]", err);
     res.status(500).json({ error: "Failed to generate metadata file" });
+  }
+});
+
+router.post("/models/:id/download", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const model = await AIModel.findByIdAndUpdate(
+      id,
+      { $inc: { downloadCount: 1 } },
+      { new: true }
+    );
+    if (!model) return res.status(404).json({ error: "Model not found" });
+    res.json({ success: true, downloadCount: model.downloadCount });
+  } catch (err) {
+    console.error("Failed to increment download count:", err);
+    res.status(500).json({ error: "Failed to increment download count" });
+  }
+});
+router.post("/models/:id/toggle-like", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+    console.log(req.body);
+    if (!userId) return res.status(400).json({ error: "userId is required" });
+    if (!id) return res.status(400).json({ error: "modelId is required" });
+
+    const model = await AIModel.findById(id);
+    if (!model) return res.status(404).json({ error: "Model not found" });
+
+    const likedIndex = model.likedUsers.indexOf(userId);
+    if (likedIndex === -1) {
+      model.likedUsers.push(userId);
+    } else {
+      model.likedUsers.splice(likedIndex, 1);
+    }
+
+    await model.save();
+    res.json({ success: true, likedUsers: model.likedUsers });
+  } catch (err) {
+    console.error("Failed to toggle like:", err);
+    res.status(500).json({ error: "Failed to toggle like" });
+  }
+});
+
+router.post("/models/:id/run", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const model = await AIModel.findByIdAndUpdate(
+      id,
+      { $inc: { runCount: 1 } },
+      { new: true }
+    );
+    if (!model) return res.status(404).json({ error: "Model not found" });
+    res.json({ success: true, runCount: model.runCount });
+  } catch (err) {
+    console.error("Failed to increment run count:", err);
+    res.status(500).json({ error: "Failed to increment run count" });
   }
 });
 
