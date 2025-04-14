@@ -7,3 +7,5 @@ node_modules/.yarn-integrity
 
 uploads/
 chunks/
+public/model-metadata/
+temp/

@@ -10,6 +10,7 @@ const versionSchema = new mongoose.Schema({
 const aiModelSchema = new mongoose.Schema({
   modelName: { type: String, required: true },
   modelType: { type: String },
+  owner: { type: String },
   category: { type: String },
   functionType: { type: String },
   tags: [{ type: String }],

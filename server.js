@@ -29,6 +29,10 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api", authRoutes);
 app.use("/api", uploadRoutes);
 app.use("/api", modelsRoutes);
+app.use(
+  "/model-metadata",
+  express.static(path.join(__dirname, "public", "model-metadata"))
+);
 
 // Start server
 app.listen(PORT, () => {
