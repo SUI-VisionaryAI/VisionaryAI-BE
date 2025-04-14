@@ -25,6 +25,8 @@ const aiModelSchema = new mongoose.Schema({
   likedUsers: [{ type: String }],
   runCount: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
+  blockchainId: { type: String, default: "" },
+  price: { type: String, default: 0 },
 });
 
 module.exports = mongoose.model("AIModel", aiModelSchema);

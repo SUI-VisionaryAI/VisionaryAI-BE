@@ -34,6 +34,7 @@ router.post("/models/init", async (req, res) => {
     description,
     fileName,
     owner,
+    price
   } = req.body;
 
   const model = new AIModel({
@@ -45,6 +46,7 @@ router.post("/models/init", async (req, res) => {
     status: "unreleased",
     versions: [],
     owner,
+    price: price || "0",
   });
 
   await model.save();
@@ -90,6 +92,7 @@ router.post("/models/prepare-metadata", async (req, res) => {
       version: latestVersion.versionNumber,
       versionDescription: latestVersion.description,
       longDescription: latestVersion.longDescription,
+      price: model.price,
     };
 
     const fileName = `${model._id}_v${metadata.version.replace(
@@ -169,6 +172,27 @@ router.post("/models/:id/run", async (req, res) => {
   } catch (err) {
     console.error("Failed to increment run count:", err);
     res.status(500).json({ error: "Failed to increment run count" });
+  }
+});
+
+router.post("/models/:id/update-blockchain-id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { blockchainId } = req.body;
+
+    if (!blockchainId)
+      return res.status(400).json({ error: "blockchainId is required" });
+
+    const model = await AIModel.findById(id);
+    if (!model) return res.status(404).json({ error: "Model not found" });
+
+    model.blockchainId = blockchainId;
+    await model.save();
+
+    res.json({ success: true, blockchainId: model.blockchainId });
+  } catch (err) {
+    console.error("Failed to update blockchainId:", err);
+    res.status(500).json({ error: "Failed to update blockchainId" });
   }
 });
 
