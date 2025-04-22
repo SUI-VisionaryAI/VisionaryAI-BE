@@ -90,7 +90,6 @@ router.post("/models/finalize", async (req, res) => {
 
       try {
         fs.mkdirSync(extractPath, { recursive: true });
-
         const zip = new AdmZip(finalPath);
         zip.extractAllTo(extractPath, true);
         console.log(`✅ Extracted ${fileName} to ${extractPath}`);
