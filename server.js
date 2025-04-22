@@ -33,6 +33,20 @@ app.use(
   "/model-metadata",
   express.static(path.join(__dirname, "public", "model-metadata"))
 );
+app.get("/api", (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <title>VisionaryAI Backend</title>
+      </head>
+      <body>
+        <h1>Welcome to VisionaryAI Backend</h1>
+        <p>The server is running successfully.</p>
+        <p>Use the API endpoints to interact with the system.</p>
+      </body>
+    </html>
+  `);
+});
 
 // Start server
 app.listen(PORT, () => {
