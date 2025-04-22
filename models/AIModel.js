@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const versionSchema = new mongoose.Schema({
+  _id: { type: mongoose.Schema.Types.ObjectId },
   versionNumber: { type: String, required: true },
   description: { type: String, default: "" },
   filePath: { type: String, required: true },

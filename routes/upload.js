@@ -4,6 +4,8 @@ const fs = require("fs");
 const path = require("path");
 const AIModel = require("../models/AIModel");
 const unzipper = require("unzipper");
+const { v4: uuidv4 } = require("uuid");
+const mongoose = require("mongoose");
 
 const router = express.Router();
 const upload = multer({ dest: "temp/" });
@@ -45,7 +47,9 @@ router.post("/models/finalize", async (req, res) => {
   }
 
   const originalExt = meta.fileName?.split(".").pop() || "bin";
-  const versionSafe = meta.versionNumber.replace(/\s+/g, "_");
+  const versionSafe = new mongoose.Types.ObjectId().toString();
+
+  // const versionSafe = meta.versionNumber.replace(/\s+/g, "_");
   const fileName = `${model._id}_v${versionSafe}.${originalExt}`;
   const finalPath = path.join(FINAL_DIR, fileName);
 
@@ -67,23 +71,29 @@ router.post("/models/finalize", async (req, res) => {
     writeStream.close();
 
     setTimeout(async () => {
-      model.versions.push({
-        versionNumber: meta.versionNumber,
+      const version = {
         description: meta.description,
         filePath: `/uploads/${fileName}`,
-      });
+        _id: versionSafe,
+        versionNumber: meta.versionNumber,
+        longDescription: meta.longDescription,
+      };
 
+      model.versions.push(version);
       await model.save();
+
+      const savedVersion = model.versions[model.versions.length - 1]; // Get the newly added version
       fs.rmSync(uploadDir, { recursive: true });
 
       res.json({
         success: true,
         modelId: model._id,
+        versionID: savedVersion._id, // Return versionID instead of versionNumber
         filePath: `/uploads/${fileName}`,
       });
 
       if (originalExt === "zip") {
-        const extractFolderName = `${model._id}_v${versionSafe}.${originalExt}`;
+        const extractFolderName = `${model._id}_${savedVersion._id}.zip`;
         const extractPath = path.join(
           __dirname,
           "..",
@@ -101,7 +111,6 @@ router.post("/models/finalize", async (req, res) => {
             .on("error", (err) => {
               console.error(`❌ Failed to extract ${fileName}:`, err);
             });
-          console.log(`✅ Extracted ${fileName} to ${extractPath}`);
         } catch (err) {
           console.error(`❌ Failed to extract ${fileName}:`, err);
         }
@@ -148,11 +157,11 @@ router.get("/models/:id/download-file", async (req, res) => {
 });
 
 router.get(
-  "/models/:modelId/versions/:version/files/:fileName/download",
+  "/models/:modelId/versions/:versionID/files/:fileName/download",
   async (req, res) => {
-    const { modelId, version, fileName } = req.params;
+    const { modelId, versionID, fileName } = req.params;
 
-    if ([modelId, version, fileName].some((p) => p.includes(".."))) {
+    if ([modelId, versionID, fileName].some((p) => p.includes(".."))) {
       return res.status(400).json({ error: "Invalid path." });
     }
 
@@ -162,8 +171,14 @@ router.get(
         return res.status(404).json({ error: "Model not found" });
       }
 
-      const versionSafe = version.replace(/\s+/g, "_");
-      const folderName = `${modelId}_v${versionSafe}.zip`;
+      const versionEntry = model.versions.id(versionID); // Use Mongoose's subdocument lookup
+      if (!versionEntry) {
+        return res
+          .status(404)
+          .json({ error: `Version with ID ${versionID} not found` });
+      }
+
+      const folderName = `${modelId}_${versionID}.zip`;
       const modelFolder = path.join(__dirname, "..", "AImodels", folderName);
       const directPath = path.join(modelFolder, fileName);
 
