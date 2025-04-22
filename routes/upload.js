@@ -64,39 +64,44 @@ router.post("/models/finalize", async (req, res) => {
   writeStream.end();
 
   writeStream.on("finish", async () => {
-    model.versions.push({
-      versionNumber: meta.versionNumber,
-      description: meta.description,
-      filePath: `/uploads/${fileName}`,
-    });
+    writeStream.close();
 
-    await model.save();
-    fs.rmSync(uploadDir, { recursive: true });
+    setTimeout(async () => {
+      model.versions.push({
+        versionNumber: meta.versionNumber,
+        description: meta.description,
+        filePath: `/uploads/${fileName}`,
+      });
 
-    res.json({
-      success: true,
-      modelId: model._id,
-      filePath: `/uploads/${fileName}`,
-    });
+      await model.save();
+      fs.rmSync(uploadDir, { recursive: true });
 
-    if (originalExt === "zip") {
-      const extractFolderName = `${model._id}_v${versionSafe}.${originalExt}`;
-      const extractPath = path.join(
-        __dirname,
-        "..",
-        "AImodels",
-        extractFolderName
-      );
+      res.json({
+        success: true,
+        modelId: model._id,
+        filePath: `/uploads/${fileName}`,
+      });
 
-      try {
-        fs.mkdirSync(extractPath, { recursive: true });
-        const zip = new AdmZip(finalPath);
-        zip.extractAllTo(extractPath, true);
-        console.log(`✅ Extracted ${fileName} to ${extractPath}`);
-      } catch (err) {
-        console.error(`❌ Failed to extract ${fileName}:`, err);
+      if (originalExt === "zip") {
+        const extractFolderName = `${model._id}_v${versionSafe}.${originalExt}`;
+        const extractPath = path.join(
+          __dirname,
+          "..",
+          "AImodels",
+          extractFolderName
+        );
+
+        try {
+          fs.mkdirSync(extractPath, { recursive: true });
+
+          const zip = new AdmZip(finalPath);
+          zip.extractAllTo(extractPath, true);
+          console.log(`✅ Extracted ${fileName} to ${extractPath}`);
+        } catch (err) {
+          console.error(`❌ Failed to extract ${fileName}:`, err);
+        }
       }
-    }
+    }, 200);
   });
 });
 
