@@ -9,3 +9,5 @@ uploads/
 chunks/
 public/model-metadata/
 temp/
+datasets/
+AImodels/
