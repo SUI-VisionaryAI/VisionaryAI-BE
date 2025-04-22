@@ -93,8 +93,6 @@ router.post("/models/finalize", async (req, res) => {
 
         try {
           fs.mkdirSync(extractPath, { recursive: true });
-
-          const zip = new AdmZip(finalPath);
           fs.createReadStream(finalPath)
             .pipe(unzipper.Extract({ path: extractPath }))
             .on("close", () => {
