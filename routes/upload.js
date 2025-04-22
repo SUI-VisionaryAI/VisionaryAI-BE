@@ -3,7 +3,7 @@ const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
 const AIModel = require("../models/AIModel");
-const AdmZip = require("adm-zip");
+const unzipper = require("unzipper");
 
 const router = express.Router();
 const upload = multer({ dest: "temp/" });
@@ -95,7 +95,14 @@ router.post("/models/finalize", async (req, res) => {
           fs.mkdirSync(extractPath, { recursive: true });
 
           const zip = new AdmZip(finalPath);
-          zip.extractAllTo(extractPath, true);
+          fs.createReadStream(finalPath)
+            .pipe(unzipper.Extract({ path: extractPath }))
+            .on("close", () => {
+              console.log(`✅ Extracted ${fileName} to ${extractPath}`);
+            })
+            .on("error", (err) => {
+              console.error(`❌ Failed to extract ${fileName}:`, err);
+            });
           console.log(`✅ Extracted ${fileName} to ${extractPath}`);
         } catch (err) {
           console.error(`❌ Failed to extract ${fileName}:`, err);
