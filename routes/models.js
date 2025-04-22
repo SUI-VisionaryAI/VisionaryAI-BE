@@ -3,7 +3,11 @@ const fs = require("fs");
 const path = require("path");
 const { v4: uuidv4 } = require("uuid");
 const AIModel = require("../models/AIModel");
+const LoadedModel = require("../models/LoadedModel");
+const User = require("../models/User");
 
+const MAX_MODEL_LOAD_QUEUE = parseInt(process.env.MAX_MODEL_LOAD_QUEUE, 10) || 5;
+console.log("MAX_MODEL_LOAD_QUEUE", MAX_MODEL_LOAD_QUEUE);
 const router = express.Router();
 
 const TEMP_DIR = path.join(__dirname, "..", "chunks");
@@ -193,6 +197,92 @@ router.post("/models/:id/update-blockchain-id", async (req, res) => {
   } catch (err) {
     console.error("Failed to update blockchainId:", err);
     res.status(500).json({ error: "Failed to update blockchainId" });
+  }
+});
+
+router.post("/models/:id/load", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userAddress, versionID } = req.body;
+
+    if (!userAddress) {
+      return res.status(400).json({ error: "User address is required" });
+    }
+
+    if (!versionID) {
+      return res.status(400).json({ error: "Version ID is required" });
+    }
+
+    const model = await AIModel.findById(id);
+    if (!model) {
+      return res.status(404).json({ error: "Model not found" });
+    }
+
+    // Check if the version exists in the model
+    const versionExists = model.versions.some((v) => v._id.toString() === versionID);
+    if (!versionExists) {
+      return res.status(404).json({ error: `Version with ID ${versionID} not found` });
+    }
+    // check is user exists in the database
+    const user = await User.findOne({ walletAddress: userAddress });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Count the number of models currently loaded by the user
+    const loadedCount = await LoadedModel.countDocuments({ userAddress });
+    console.log("Loaded count:", loadedCount);
+    if (loadedCount >= MAX_MODEL_LOAD_QUEUE) {
+      return res.status(400).json({
+        error: `Maximum number of loaded models (${MAX_MODEL_LOAD_QUEUE}) reached`,
+      });
+    }
+
+    // Check if the specific version of the model is already loaded by the user
+    const alreadyLoaded = await LoadedModel.findOne({
+      userId: user._id,
+      modelId: id,
+      versionID,
+    });
+    if (alreadyLoaded) {
+      return res.status(400).json({ error: "Model version is already loaded" });
+    }
+
+    // Add the model version to the loaded models collection
+    const loadedModel = new LoadedModel({
+      userId: user._id,
+      modelId: id,
+      versionID,
+      loadedAt: new Date(),
+    });
+    await loadedModel.save();
+
+    res.json({
+      success: true,
+      message: `Model ${model.modelName} (version ID ${versionID}) loaded successfully`,
+    });
+  } catch (err) {
+    console.error("Failed to load model:", err);
+    res.status(500).json({ error: "Failed to load model" });
+  }
+});
+
+router.get("/models/loaded", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const loadedModels = await LoadedModel.find({ userId })
+      .populate("modelId")
+      .select("modelId versionNumber loadedAt");
+
+    res.json({ success: true, loadedModels });
+  } catch (err) {
+    console.error("Failed to fetch loaded models:", err);
+    res.status(500).json({ error: "Failed to fetch loaded models" });
   }
 });
 
