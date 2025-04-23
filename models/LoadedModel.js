@@ -7,8 +7,13 @@ const loadedModelSchema = new mongoose.Schema({
     ref: "AIModel",
     required: true,
   },
-  versionID: { type: String, required: true }, // Track the specific version
-  loadedAt: { type: Date, default: Date.now }, // Timestamp for when the model was loaded
+  versionID: { type: String, required: true },
+  loadedAt: { type: Date, default: Date.now },
+  status: {
+    type: String,
+    enum: ["loading", "loaded", "error"],
+    default: "loading",
+  },
 });
 
 module.exports = mongoose.model("LoadedModel", loadedModelSchema);

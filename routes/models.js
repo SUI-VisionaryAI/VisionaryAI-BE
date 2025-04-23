@@ -200,6 +200,75 @@ router.post("/models/:id/update-blockchain-id", async (req, res) => {
   }
 });
 
+router.get("/models/loaded", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const loadedModels = await LoadedModel.find({ userId })
+      .populate("modelId")
+      .select("modelId versionNumber loadedAt");
+
+    res.json({ success: true, loadedModels });
+  } catch (err) {
+    console.error("Failed to fetch loaded models:", err);
+    res.status(500).json({ error: "Failed to fetch loaded models" });
+  }
+});
+router.get("/models/:modelId/versions/:version/files", async (req, res) => {
+  const { modelId, version } = req.params;
+
+  // Sanity check to prevent path traversal
+  if ([modelId, version].some(p => p.includes(".."))) {
+    return res.status(400).json({ error: "Invalid path" });
+  }
+
+  try {
+    const versionSafe = version.replace(/\s+/g, "_");
+
+    // Find the model
+    const model = await AIModel.findById(modelId);
+    if (!model) {
+      return res.status(404).json({ error: "Model not found" });
+    }
+
+    // Construct base extracted folder path
+    const baseFolder = path.join(__dirname, "..", "AImodels", `${modelId}_${versionSafe}.zip`);
+
+    // If extracted folder contains a nested directory, go into it
+    let folderPath = baseFolder;
+    const entries = fs.readdirSync(baseFolder, { withFileTypes: true });
+    const subdirs = entries.filter((e) => e.isDirectory());
+    if (subdirs.length === 1) {
+      folderPath = path.join(baseFolder, subdirs[0].name);
+    }
+
+    const files = fs.readdirSync(folderPath)
+      .filter((f) => fs.statSync(path.join(folderPath, f)).isFile())
+      .map((fileName) => {
+        const fullPath = path.join(folderPath, fileName);
+        const stat = fs.statSync(fullPath);
+        return {
+          fileName,
+          size: stat.size,
+          createdAt: stat.birthtime,
+        };
+      });
+
+    res.json({ folder: path.basename(folderPath), files });
+  } catch (err) {
+    console.error("Error listing version files:", err);
+    res.status(500).json({ error: "Failed to list version files" });
+  }
+});
+
+/* ************************
+      LOADING MODELS
+************************ */
+
 router.post("/models/:id/load", async (req, res) => {
   try {
     const { id } = req.params;
@@ -264,71 +333,6 @@ router.post("/models/:id/load", async (req, res) => {
   } catch (err) {
     console.error("Failed to load model:", err);
     res.status(500).json({ error: "Failed to load model" });
-  }
-});
-
-router.get("/models/loaded", async (req, res) => {
-  try {
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: "User ID is required" });
-    }
-
-    const loadedModels = await LoadedModel.find({ userId })
-      .populate("modelId")
-      .select("modelId versionNumber loadedAt");
-
-    res.json({ success: true, loadedModels });
-  } catch (err) {
-    console.error("Failed to fetch loaded models:", err);
-    res.status(500).json({ error: "Failed to fetch loaded models" });
-  }
-});
-router.get("/models/:modelId/versions/:version/files", async (req, res) => {
-  const { modelId, version } = req.params;
-
-  // Sanity check to prevent path traversal
-  if ([modelId, version].some(p => p.includes(".."))) {
-    return res.status(400).json({ error: "Invalid path" });
-  }
-
-  try {
-    const versionSafe = version.replace(/\s+/g, "_");
-
-    // Find the model
-    const model = await AIModel.findById(modelId);
-    if (!model) {
-      return res.status(404).json({ error: "Model not found" });
-    }
-
-    // Construct base extracted folder path
-    const baseFolder = path.join(__dirname, "..", "AImodels", `${modelId}_${versionSafe}.zip`);
-
-    // If extracted folder contains a nested directory, go into it
-    let folderPath = baseFolder;
-    const entries = fs.readdirSync(baseFolder, { withFileTypes: true });
-    const subdirs = entries.filter((e) => e.isDirectory());
-    if (subdirs.length === 1) {
-      folderPath = path.join(baseFolder, subdirs[0].name);
-    }
-
-    const files = fs.readdirSync(folderPath)
-      .filter((f) => fs.statSync(path.join(folderPath, f)).isFile())
-      .map((fileName) => {
-        const fullPath = path.join(folderPath, fileName);
-        const stat = fs.statSync(fullPath);
-        return {
-          fileName,
-          size: stat.size,
-          createdAt: stat.birthtime,
-        };
-      });
-
-    res.json({ folder: path.basename(folderPath), files });
-  } catch (err) {
-    console.error("Error listing version files:", err);
-    res.status(500).json({ error: "Failed to list version files" });
   }
 });
 
