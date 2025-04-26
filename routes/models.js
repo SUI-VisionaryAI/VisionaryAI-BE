@@ -5,8 +5,11 @@ const { v4: uuidv4 } = require("uuid");
 const AIModel = require("../models/AIModel");
 const LoadedModel = require("../models/LoadedModel");
 const User = require("../models/User");
+const axios = require("axios");
+require("dotenv").config();
 
-const MAX_MODEL_LOAD_QUEUE = parseInt(process.env.MAX_MODEL_LOAD_QUEUE, 10) || 5;
+const MAX_MODEL_LOAD_QUEUE =
+  parseInt(process.env.MAX_MODEL_LOAD_QUEUE, 10) || 5;
 console.log("MAX_MODEL_LOAD_QUEUE", MAX_MODEL_LOAD_QUEUE);
 const router = express.Router();
 
@@ -38,7 +41,7 @@ router.post("/models/init", async (req, res) => {
     description,
     fileName,
     owner,
-    price
+    price,
   } = req.body;
 
   const model = new AIModel({
@@ -222,7 +225,7 @@ router.get("/models/:modelId/versions/:version/files", async (req, res) => {
   const { modelId, version } = req.params;
 
   // Sanity check to prevent path traversal
-  if ([modelId, version].some(p => p.includes(".."))) {
+  if ([modelId, version].some((p) => p.includes(".."))) {
     return res.status(400).json({ error: "Invalid path" });
   }
 
@@ -236,7 +239,12 @@ router.get("/models/:modelId/versions/:version/files", async (req, res) => {
     }
 
     // Construct base extracted folder path
-    const baseFolder = path.join(__dirname, "..", "AImodels", `${modelId}_${versionSafe}.zip`);
+    const baseFolder = path.join(
+      __dirname,
+      "..",
+      "AImodels",
+      `${modelId}_${versionSafe}.zip`
+    );
 
     // If extracted folder contains a nested directory, go into it
     let folderPath = baseFolder;
@@ -246,7 +254,8 @@ router.get("/models/:modelId/versions/:version/files", async (req, res) => {
       folderPath = path.join(baseFolder, subdirs[0].name);
     }
 
-    const files = fs.readdirSync(folderPath)
+    const files = fs
+      .readdirSync(folderPath)
       .filter((f) => fs.statSync(path.join(folderPath, f)).isFile())
       .map((fileName) => {
         const fullPath = path.join(folderPath, fileName);
@@ -288,9 +297,13 @@ router.post("/models/:id/load", async (req, res) => {
     }
 
     // Check if the version exists in the model
-    const versionExists = model.versions.some((v) => v._id.toString() === versionID);
+    const versionExists = model.versions.some(
+      (v) => v._id.toString() === versionID
+    );
     if (!versionExists) {
-      return res.status(404).json({ error: `Version with ID ${versionID} not found` });
+      return res
+        .status(404)
+        .json({ error: `Version with ID ${versionID} not found` });
     }
     // check is user exists in the database
     const user = await User.findOne({ walletAddress: userAddress });
@@ -301,6 +314,7 @@ router.post("/models/:id/load", async (req, res) => {
     // Count the number of models currently loaded by the user
     const loadedCount = await LoadedModel.countDocuments({ userAddress });
     console.log("Loaded count:", loadedCount);
+    
     if (loadedCount >= MAX_MODEL_LOAD_QUEUE) {
       return res.status(400).json({
         error: `Maximum number of loaded models (${MAX_MODEL_LOAD_QUEUE}) reached`,
@@ -316,20 +330,52 @@ router.post("/models/:id/load", async (req, res) => {
     if (alreadyLoaded) {
       return res.status(400).json({ error: "Model version is already loaded" });
     }
+    
+    // const loadedModel = new LoadedModel({
+    //   userId: user._id,
+    //   modelId: id,
+    //   versionID,
+    //   loadedAt: new Date(),
+    // });
+    // await loadedModel.save();
 
-    // Add the model version to the loaded models collection
-    const loadedModel = new LoadedModel({
-      userId: user._id,
-      modelId: id,
-      versionID,
-      loadedAt: new Date(),
-    });
-    await loadedModel.save();
+    // res.json({
+    //   success: true,
+    //   message: `Model ${model.modelName} (version ID ${versionID}) loaded successfully`,
+    // });
+    const GPU_ENDPOINT = process.env.GPU_ENDPOINT;
+    console.log("GPU_ENDPOINT", GPU_ENDPOINT);
+    if (!GPU_ENDPOINT) {
+      return res.status(500).json({ error: "GPU endpoint is not configured" });
+    }
 
-    res.json({
-      success: true,
-      message: `Model ${model.modelName} (version ID ${versionID}) loaded successfully`,
-    });
+    try {
+      const response = await axios.post(`${GPU_ENDPOINT}/load-model`, {
+        modelId: id,
+        versionId: versionID,
+      });
+
+      // if (response.data.success) {
+      //   // Add the model version to the loaded models collection
+      //   const loadedModel = new LoadedModel({
+      //     userId: user._id,
+      //     modelId: id,
+      //     versionID,
+      //     loadedAt: new Date(),
+      //   });
+      //   await loadedModel.save();
+
+      //   res.json({
+      //     success: true,
+      //     message: `Model ${model.modelName} (version ID ${versionID}) loaded successfully`,
+      //   });
+      // } else {
+      //   res.status(500).json({ error: "Failed to load model on GPU" });
+      // }
+    } catch (err) {
+      console.error("Error calling GPU endpoint:", err);
+      res.status(500).json({ error: "Failed to load model on GPU" });
+    }
   } catch (err) {
     console.error("Failed to load model:", err);
     res.status(500).json({ error: "Failed to load model" });
