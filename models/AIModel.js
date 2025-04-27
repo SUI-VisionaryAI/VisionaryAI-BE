@@ -28,6 +28,11 @@ const aiModelSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   blockchainId: { type: String, default: "" },
   price: { type: String, default: 0 },
+  image: { type: String, default: "" },
+  shortDescription: { type: String, default: "" },
+  longDescription: { type: String, default: "" },
+  allowCommercialUse: { type: Boolean, default: false },
+  allowResale: { type: Boolean, default: false },
 });
 
 module.exports = mongoose.model("AIModel", aiModelSchema);

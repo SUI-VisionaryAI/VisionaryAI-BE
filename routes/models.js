@@ -37,11 +37,13 @@ router.post("/models/init", async (req, res) => {
     category,
     functionType,
     tags,
-    version,
-    description,
-    fileName,
-    owner,
+    shortDescription,
+    longDescription,
     price,
+    allowCommercialUse,
+    allowResale,
+    image,
+    owner
   } = req.body;
 
   const model = new AIModel({
@@ -50,29 +52,32 @@ router.post("/models/init", async (req, res) => {
     category,
     functionType,
     tags,
-    status: "unreleased",
-    versions: [],
+    shortDescription,
+    longDescription,
+    allowCommercialUse,
+    allowResale,
+    image,
     owner,
     price: price || "0",
   });
 
   await model.save();
 
-  const uploadId = uuidv4();
-  const uploadPath = path.join(TEMP_DIR, uploadId);
-  fs.mkdirSync(uploadPath, { recursive: true });
+  // const uploadId = uuidv4();
+  // const uploadPath = path.join(TEMP_DIR, uploadId);
+  // fs.mkdirSync(uploadPath, { recursive: true });
 
-  fs.writeFileSync(
-    path.join(uploadPath, `${uploadId}-meta.json`),
-    JSON.stringify({
-      modelId: model._id,
-      versionNumber: version,
-      description: description || "",
-      fileName,
-    })
-  );
+  // fs.writeFileSync(
+  //   path.join(uploadPath, `${uploadId}-meta.json`),
+  //   JSON.stringify({
+  //     modelId: model._id,
+  //     versionNumber: version,
+  //     description: description || "",
+  //     fileName,
+  //   })
+  // );
 
-  res.json({ modelId: model._id, uploadId });
+  res.json({ modelId: model._id });
 });
 router.post("/models/prepare-metadata", async (req, res) => {
   try {
