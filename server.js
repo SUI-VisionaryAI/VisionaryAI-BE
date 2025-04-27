@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(express.json());
 app.use(cors());
+app.use(express.json({ limit: "10mb" }));
 
 // MongoDB
 mongoose.connect("mongodb://localhost:27017/walrus_auth", {
