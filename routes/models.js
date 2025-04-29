@@ -6,6 +6,8 @@ const AIModel = require("../models/AIModel");
 const LoadedModel = require("../models/LoadedModel");
 const User = require("../models/User");
 const axios = require("axios");
+const mongoose = require("mongoose");
+const unzipper = require("unzipper");
 require("dotenv").config();
 
 const MAX_MODEL_LOAD_QUEUE =
@@ -248,7 +250,7 @@ router.get("/models/:modelId/versions/:version/files", async (req, res) => {
       __dirname,
       "..",
       "AImodels",
-      `${modelId}_${versionSafe}.zip`
+      `${modelId}_${versionSafe}`
     );
 
     // If extracted folder contains a nested directory, go into it
@@ -384,6 +386,109 @@ router.post("/models/:id/load", async (req, res) => {
   } catch (err) {
     console.error("Failed to load model:", err);
     res.status(500).json({ error: "Failed to load model" });
+  }
+});
+router.get("/models/:id/download-file", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { version } = req.query;
+
+    const model = await AIModel.findById(id);
+    if (!model) return res.status(404).json({ error: "Model not found" });
+
+    let versionEntry;
+
+    if (version) {
+      versionEntry = model.versions.find((v) => v.versionNumber === version);
+      if (!versionEntry) {
+        return res.status(404).json({ error: `Version ${version} not found` });
+      }
+    } else {
+      versionEntry = model.versions[model.versions.length - 1];
+    }
+
+    if (!versionEntry) {
+      return res.status(400).json({ error: "No version available" });
+    }
+
+    const fileName = path.basename(versionEntry.filePath);
+    const filePath = path.join(__dirname, "..", "uploads", fileName);
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    res.download(filePath, fileName);
+  } catch (err) {
+    console.error("Failed to download model file:", err);
+    res.status(500).json({ error: "Failed to download model file" });
+  }
+});
+router.post("/models/:modelId/versions", async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const { versionNumber, description, longDescription, fileId } = req.body;
+
+    if (!versionNumber || !fileId) {
+      return res.status(400).json({ error: "versionNumber and fileId are required." });
+    }
+
+    const model = await AIModel.findById(modelId);
+    if (!model) {
+      return res.status(404).json({ error: "Model not found." });
+    }
+
+    const versionId = new mongoose.Types.ObjectId();
+
+    const fileName = `${fileId}.zip`;
+    const filePath = path.join(__dirname, "..", "uploads", fileName);
+    const publicFilePath = `/uploads/${fileName}`;
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "Uploaded file not found." });
+    }
+
+    const newVersion = {
+      _id: versionId,
+      versionNumber,
+      description: description || "",
+      longDescription: longDescription || "",
+      filePath: publicFilePath,
+      createdAt: new Date(),
+    };
+
+    model.versions.push(newVersion);
+    await model.save();
+
+    // 🛠 Now check if file is zip and extract
+    const extractFolderPath = path.join(__dirname, "..", "AImodels", `${model._id}_${versionId}`);
+
+    try {
+      fs.mkdirSync(extractFolderPath, { recursive: true });
+      fs.createReadStream(filePath)
+        .pipe(unzipper.Extract({ path: extractFolderPath }))
+        .on("close", () => {
+          console.log(`✅ Extracted ZIP: ${fileName} ➔ ${extractFolderPath}`);
+        })
+        .on("error", (err) => {
+          console.error(`❌ Failed to extract ZIP ${fileName}:`, err);
+        });
+    } catch (extractErr) {
+      console.error(`❌ Error creating extract folder:`, extractErr);
+    }
+
+    res.json({
+      success: true,
+      version: {
+        id: versionId,
+        versionNumber,
+        filePath: publicFilePath,
+      },
+    });
+
+  } catch (err) {
+    console.error("Failed to add model version:", err);
+    res.status(500).json({ error: "Failed to add model version." });
   }
 });
 
