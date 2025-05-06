@@ -45,7 +45,7 @@ router.post("/models/init", async (req, res) => {
     allowCommercialUse,
     allowResale,
     image,
-    owner
+    owner,
   } = req.body;
 
   const model = new AIModel({
@@ -78,8 +78,42 @@ router.post("/models/init", async (req, res) => {
   //     fileName,
   //   })
   // );
-
-  res.json({ modelId: model._id });
+  // modelName: { type: String, required: true },
+  //   modelType: { type: String },
+  //   owner: { type: String },
+  //   category: { type: String },
+  //   functionType: { type: String },
+  //   tags: [{ type: String }],
+  //   status: {
+  //     type: String,
+  //     enum: ["unreleased", "released"],
+  //     default: "unreleased",
+  //   },
+  //   versions: [versionSchema],
+  //   downloadCount: { type: Number, default: 0 },
+  //   likedUsers: [{ type: String }],
+  //   runCount: { type: Number, default: 0 },
+  //   createdAt: { type: Date, default: Date.now },
+  //   blockchainId: { type: String, default: "" },
+  //   price: { type: String, default: 0 },
+  //   image: { type: String, default: "" },
+  //   shortDescription: { type: String, default: "" },
+  //   longDescription: { type: String, default: "" },
+  //   allowCommercialUse: { type: Boolean, default: false },
+  //   allowResale: { type: Boolean, default: false },
+  res.json({
+    modelId: model._id,
+    owner: model.owner,
+    modelName: model.modelName,
+    modelType: model.modelType,
+    category: model.category,
+    functionType: model.functionType,
+    tags: model.tags,
+    status: model.status,
+    createdAt: model.createdAt,
+    price: model.price,
+    image: model.image,
+  });
 });
 router.post("/models/prepare-metadata", async (req, res) => {
   try {
@@ -91,36 +125,41 @@ router.post("/models/prepare-metadata", async (req, res) => {
     if (!model) return res.status(404).json({ error: "Model not found" });
 
     const latestVersion = model.versions[model.versions.length - 1];
-    if (!latestVersion)
-      return res.status(400).json({ error: "No version available" });
+    // if (!latestVersion)
+    //   return res.status(400).json({ error: "No version available" });
 
     const metadata = {
       modelId: model._id,
       modelName: model.modelName,
-      description: model.description,
       image: model.image,
       framework: model.framework,
       task: model.task,
       language: model.language,
       license: model.license,
-      version: latestVersion.versionNumber,
-      versionDescription: latestVersion.description,
-      longDescription: latestVersion.longDescription,
+      // version: latestVersion.versionNumber,
+      // versionDescription: latestVersion.description,
+      // longDescription: latestVersion.longDescription,
       price: model.price,
+      allowCommercialUse: model.allowCommercialUse,
+      allowResale: model.allowResale,
+      tags: model.tags,
+      createdAt: model.createdAt,
+      updatedAt: model.updatedAt,
+      longDescription: model.longDescription,
+      shortDescription: model.shortDescription,
+      owner: model.owner,
+      functionType: model.functionType,
     };
 
-    const fileName = `${model._id}_v${metadata.version.replace(
-      /\s+/g,
-      "_"
-    )}.json`;
+    const fileName = `${model._id}_metadata.json`;
     const filePath = path.join(METADATA_DIR, fileName);
     const publicUrl = `/model-metadata/${fileName}`;
 
     fs.writeFileSync(filePath, JSON.stringify(metadata, null, 2));
 
     // Update version metadataUrl if not already saved
-    latestVersion.metadataUrl = publicUrl;
-    await model.save();
+    // latestVersion.metadataUrl = publicUrl;
+    // await model.save();
 
     res.json({
       success: true,
@@ -321,7 +360,7 @@ router.post("/models/:id/load", async (req, res) => {
     // Count the number of models currently loaded by the user
     const loadedCount = await LoadedModel.countDocuments({ userAddress });
     console.log("Loaded count:", loadedCount);
-    
+
     if (loadedCount >= MAX_MODEL_LOAD_QUEUE) {
       return res.status(400).json({
         error: `Maximum number of loaded models (${MAX_MODEL_LOAD_QUEUE}) reached`,
@@ -337,7 +376,7 @@ router.post("/models/:id/load", async (req, res) => {
     if (alreadyLoaded) {
       return res.status(400).json({ error: "Model version is already loaded" });
     }
-    
+
     // const loadedModel = new LoadedModel({
     //   userId: user._id,
     //   modelId: id,
@@ -430,7 +469,9 @@ router.post("/models/:modelId/versions", async (req, res) => {
     const { versionNumber, description, longDescription, fileId } = req.body;
 
     if (!versionNumber || !fileId) {
-      return res.status(400).json({ error: "versionNumber and fileId are required." });
+      return res
+        .status(400)
+        .json({ error: "versionNumber and fileId are required." });
     }
 
     const model = await AIModel.findById(modelId);
@@ -461,7 +502,12 @@ router.post("/models/:modelId/versions", async (req, res) => {
     await model.save();
 
     // 🛠 Now check if file is zip and extract
-    const extractFolderPath = path.join(__dirname, "..", "AImodels", `${model._id}_${versionId}`);
+    const extractFolderPath = path.join(
+      __dirname,
+      "..",
+      "AImodels",
+      `${model._id}_${versionId}`
+    );
 
     try {
       fs.mkdirSync(extractFolderPath, { recursive: true });
@@ -485,7 +531,6 @@ router.post("/models/:modelId/versions", async (req, res) => {
         filePath: publicFilePath,
       },
     });
-
   } catch (err) {
     console.error("Failed to add model version:", err);
     res.status(500).json({ error: "Failed to add model version." });
